@@ -1,0 +1,16 @@
+services:
+  supermemory:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "6767:6767"
+    volumes:
+      - supermemory-data:/data
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PORT=6767
+    restart: unless-stopped
+
+volumes:
+  supermemory-data:
