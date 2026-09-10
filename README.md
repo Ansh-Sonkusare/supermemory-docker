@@ -1,74 +1,88 @@
 # supermemory-docker
 
-Dockerized [supermemory](https://github.com/supermemoryai/supermemory) server — a local AI memory layer — plus the [supermemory-dashboard](https://github.com/Ansh-Sonkusare/supermemory-dashboard) web UI. One `docker compose up` gives you a full local memory stack.
+Dockerized [supermemory-server](https://github.com/supermemoryai/supermemory) — a local AI memory layer. Single container, everything persisted in a Docker volume.
 
 ## What you get
 
-| Service | Port | URL | Purpose |
-|---|---|---|---|
-| `supermemory` | 6767 | http://localhost:6767 | The memory API server (supermemory-server `v0.0.8`) |
-| `dashboard` | 5173 | http://localhost:5173 | Web UI: memories, search, memory graph, add, settings |
+- **supermemory-server v0.0.8** — the full Memory API (documents, memories, hybrid search) on `http://localhost:6767`
+- Local CPU embeddings out of the box (`Xenova/bge-base-en-v1.5`) — no embedding API key required
+- Bring your own LLM: OpenAI, Anthropic, Gemini, Groq, or any OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, a local proxy…)
 
-The dashboard is served behind nginx, which proxies `/api/*` to the server, so everything is same-origin and the self-hosted binary's missing CORS headers are never an issue.
+## Quickstart
 
-## Usage
+The server refuses to boot until **at least one LLM provider is configured** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `GROQ_API_KEY`). Drop your values in a `.env` file next to the compose file, then start:
 
-### With a hosted LLM key
-
+```bash
+# .env
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=...      # or any one provider key
 ```
-# Set your Gemini API key
-export GEMINI_API_KEY="your-key"
 
-# Build and start the stack
+```bash
 docker compose up -d --build
-
-# Dashboard: http://localhost:5173
-# Server:   http://localhost:6767
 ```
 
-### Fully offline (Ollama)
+> Using Podman? The commands are the same (`podman compose up -d --build`).
 
-Set `GEMINI_API_KEY` to an empty string and point the server at Ollama during its first-boot setup wizard (`gpt-oss:20b` works well). Nothing leaves your machine.
-
-## First boot
-
-On first boot, the server runs a one-time setup wizard. It prints the API key to the server logs:
+First boot prints an API key to the logs. Open the settings/docs with it — it's also auto-applied for unauthenticated localhost requests:
 
 ```
-docker compose logs supermemory
-```
-
-The key is also persisted in the container at `/data/api-key`:
-
-```
+docker compose logs supermemory | grep -E 'sm_|api key'
+# or read it back out of the data directory
 docker compose exec supermemory cat /data/api-key
 ```
 
-Open http://localhost:5173 → **Settings**, enter the API key (backend URL already defaults to `/api`), save, and you're in.
+## Point at a local LLM (Ollama / vLLM / LM Studio / proxy)
+
+Don't want to use a hosted provider? Point the `OPENAI_*` vars at any OpenAI-compatible endpoint. Nothing leaves your machine.
+
+```bash
+# .env — Docker
+OPENAI_API_KEY=dummy
+OPENAI_BASE_URL=http://host.docker.internal:20128/v1
+OPENAI_MODEL=free-first
+
+# .env — Podman (the host alias differs from Docker)
+OPENAI_API_KEY=dummy
+OPENAI_BASE_URL=http://host.containers.internal:20128/v1
+OPENAI_MODEL=free-first
+```
+
+## Configuration
+
+Everything is tunable via environment variables in `.env`. Defaults shown below; the compose file uses `${VAR:-default}` so unset vars fall back gracefully.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPENAI_API_KEY` | *(empty)* | OpenAI-compatible key. Set `dummy` when using a local endpoint. One of the four keys below is required. |
+| `OPENAI_BASE_URL` | *(empty)* | OpenAI-compatible base URL, e.g. `http://host.docker.internal:20128/v1`. |
+| `OPENAI_MODEL` | *(empty)* | Model name to use against the endpoint. |
+| `GEMINI_API_KEY` | *(empty)* | Gemini key (alternative provider). |
+| `ANTHROPIC_API_KEY` | *(empty)* | Anthropic key (alternative provider). |
+| `GROQ_API_KEY` | *(empty)* | Groq key (alternative provider). |
+| `SUPERMEMORY_PORT` | `6767` | Host port for the server, e.g. `6768` if `6767` is taken. Inside the container the server always listens on `6767` (`PORT`). |
+| `SUPERMEMORY_DATA_DIR` | `/data` | Where state lives inside the container. |
+| `SUPERMEMORY_EMBEDDING_PROVIDER` | `local` | Embedding backend: `local` (CPU, default), or OpenAI/Gemini/Ollama. |
+| `SUPERMEMORY_EMBEDDING_MODEL` | `Xenova/bge-base-en-v1.5` | Embedding model name. |
+| `SUPERMEMORY_EMBEDDING_DIMENSIONS` | `768` | Embedding vector width; must match the model. |
+| `SUPERMEMORY_EMBEDDING_RAM_LIMIT` | `1gb` | Ingest memory budget; raise it (e.g. `2gb`) if ingestion is slow. |
 
 ## Data
 
-Persisted in a named Docker volume (`supermemory-data`). Delete it to factory reset:
+State (documents, vectors, encrypted config) lives in the named volume `supermemory-data` at `/data`. Delete it to factory reset:
 
-```
+```bash
 docker compose down -v
 ```
 
+The server is licensed "lite" up to 10k documents.
+
 ## Updating
 
-```
+```bash
 git pull
-docker compose up -d --build
+docker compose build --no-cache   # picks up newest server release
+docker compose up -d
 ```
 
-The dashboard is built from the latest `main` of [supermemory-dashboard](https://github.com/Ansh-Sonkusare/supermemory-dashboard) at image build time, so `--build` picks up both the newest server release and the newest UI.
-
-## Running just the server
-
-Want the bare API without the dashboard? Make it a one-off:
-
-```
-docker compose up -d --no-deps supermemory
-```
-
-Or pin only that service in your compose file by removing the `dashboard` block above.
+Unused old images: `docker image prune`.
