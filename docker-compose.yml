@@ -12,5 +12,15 @@ services:
       - PORT=6767
     restart: unless-stopped
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard.Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - supermemory
+    restart: unless-stopped
+
 volumes:
   supermemory-data:

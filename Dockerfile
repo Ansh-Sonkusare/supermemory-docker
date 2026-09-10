@@ -7,7 +7,7 @@ RUN case "$TARGETARCH" in \
       *) exit 1 ;; \
     esac && \
     wget -qO /supermemory-server \
-      "https://github.com/supermemoryai/supermemory/releases/download/server-v0.0.3/supermemory-server-${TARGETOS}-${ARCH}" && \
+      "https://github.com/supermemoryai/supermemory/releases/download/server-v0.0.8/supermemory-server-${TARGETOS}-${ARCH}" && \
     chmod +x /supermemory-server
 
 FROM debian:bookworm-slim
